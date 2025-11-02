@@ -10,11 +10,12 @@ This script:
 6. Aggregates all data into a single parquet file
 """
 
-import polars as pl
-import zipfile
-from pathlib import Path
 import re
+import zipfile
 from io import BytesIO
+from pathlib import Path
+
+import polars as pl
 
 # Configuration
 RAW_PATH = Path(__file__).parent.parent / "data" / "raw"
