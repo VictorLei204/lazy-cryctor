@@ -1806,6 +1806,7 @@ dependencies = [
     { name = "plotly" },
     { name = "polars", extra = ["plot"] },
     { name = "scikit-learn" },
+    { name = "statsforecast" },
     { name = "statsmodels" },
 ]
 
@@ -1820,6 +1821,7 @@ requires-dist = [
     { name = "plotly", specifier = ">=6.3.1" },
     { name = "polars", extras = ["plot"], specifier = ">=1.32.3" },
     { name = "scikit-learn", specifier = ">=1.7.2" },
+    { name = "statsforecast", specifier = ">=2.0.1" },
     { name = "statsmodels", specifier = ">=0.14.5" },
 ]
 
