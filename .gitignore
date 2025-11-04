@@ -10,4 +10,4 @@ wheels/
 .venv
 
 data/
-research/AutogluonModels/
+AutogluonModels/
