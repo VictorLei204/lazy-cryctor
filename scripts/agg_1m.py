@@ -98,11 +98,27 @@ def read_csv_from_zip(
 
             if has_header:
                 # Read with header
-                df = pl.read_csv(BytesIO(csv_data))
+                df = pl.read_csv(
+                    BytesIO(csv_data),
+                    schema_overrides={
+                        "volume": pl.Float64,
+                        "taker_buy_quote_volume": pl.Float64,
+                        "taker_buy_volume": pl.Float64,
+                        "quote_volume": pl.Float64,
+                    },
+                )
             else:
                 # Read without header, specify column names
                 df = pl.read_csv(
-                    BytesIO(csv_data), has_header=False, new_columns=COLUMN_NAMES
+                    BytesIO(csv_data),
+                    has_header=False,
+                    new_columns=COLUMN_NAMES,
+                    schema_overrides={
+                        "volume": pl.Float64,
+                        "taker_buy_quote_volume": pl.Float64,
+                        "taker_buy_volume": pl.Float64,
+                        "quote_volume": pl.Float64,
+                    },
                 )
 
     # Cast volume columns to Float64 to ensure consistent schema
