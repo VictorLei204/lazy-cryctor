@@ -13,3 +13,5 @@ dependencies = [
     "polars[plot]>=1.32.3",
     "statsmodels>=0.14.5",
 ]
+[tool.ty.environment]
+root = ["./research"]
