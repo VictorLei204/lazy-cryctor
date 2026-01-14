@@ -1,4 +1,36 @@
+import math
 import polars as pl
+
+OPEN = pl.col("open")
+HIGH = pl.col("high")
+LOW = pl.col("low")
+CLOSE = pl.col("close")
+VOLUME = pl.col("volume")
+OPEN_TIME = pl.col("open_time")
+RET = pl.col("ret")
+
+ETH_USDT = "ETHUSDT"
+BTC_USDT = "BTCUSDT"
+SOL_USDT = "SOLUSDT"
+XRP_USDT = "XRPUSDT"
+DOGE_USDT = "DOGEUSDT"
+BNB_USDT = "BNBUSDT"
+
+ET = "America/New_York"
+UTC = "UTC"
+
+ANN_RET_MIN = RET.mean() * 365 * 24 * 60
+ANN_RET_DAY = RET.mean() * 365
+SHARPE_MIN = math.sqrt(365 * 24 * 60) * RET.mean() / RET.std()
+SHARPE_DAY = math.sqrt(365) * RET.mean() / RET.std()
+MDD = (RET.cum_sum().cum_max() - RET.cum_sum()).max()
+RDD_MIN = ANN_RET_MIN / MDD
+RDD_DAY = ANN_RET_DAY / MDD
+
+
+def read(interval: str = "1m") -> pl.LazyFrame:
+    DATA_PATH = {"1m": "../data/1m/1m.parquet", "1d": "../data/1d/1d.parquet"}
+    return pl.scan_parquet(DATA_PATH[interval])
 
 
 def backtest(
@@ -22,14 +54,14 @@ def backtest(
 
     data_with_future_returns = data.lazy().with_columns(
         pl.col("close")
-        .sort_by("open_time")
+        .sort_by(OPEN_TIME)
         .pct_change()
         .shift(-t)
         .over("symbol")
         .alias("return")
     )
-    return_ = (
-        data_with_future_returns.group_by("open_time")
+    ret = (
+        data_with_future_returns.group_by(OPEN_TIME)
         .agg(
             (
                 pl.col("return").top_k_by(by=factor, k=k, reverse=reverse).mean() - fees
@@ -43,45 +75,17 @@ def backtest(
         .with_columns(
             ((pl.col("long_return") + pl.col("short_return")) / 2).alias("both_return")
         )
-        .sort("open_time")
-        .select("open_time", pl.col(f"{mode}_return").alias("portfolio_return"))
+        .sort(OPEN_TIME)
+        .select(OPEN_TIME, pl.col(f"{mode}_return").alias("portfolio_return"))
     )
 
-    cumlog = return_.with_columns(
+    cumlog = ret.with_columns(
         pl.col("portfolio_return").log1p().cum_sum().alias("cumulative_logret")
-    ).select(["open_time", "cumulative_logret"])
+    ).select([OPEN_TIME, "cumulative_logret"])
 
     if plot:
         cumlog.collect(engine="streaming").plot.line(
             x="open_time", y="cumulative_logret"
         ).show()
 
-    return return_
-
-
-def metrics(return_: pl.LazyFrame | pl.DataFrame) -> pl.LazyFrame:
-    """
-    Calculate backtest metrics
-    return_: pl.LazyFrame with columns: open_time, portfolio_return
-    """
-
-    return_ = return_.lazy().sort("open_time")
-    metrics = return_.select(
-        (
-            pl.col("portfolio_return").mean()
-            / pl.col("portfolio_return").std()
-            * (365**0.5)
-        ).alias("sharpe"),
-        (
-            pl.col("portfolio_return").mean()
-            * 365
-            / (
-                (
-                    pl.col("portfolio_return").cum_sum().cum_max()
-                    - pl.col("portfolio_return").cum_sum()
-                ).max()
-            )
-        ).alias("rdd"),
-    )
-
-    return metrics
+    return ret

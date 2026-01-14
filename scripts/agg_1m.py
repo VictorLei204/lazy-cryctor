@@ -125,8 +125,8 @@ def read_csv_from_zip(
     # Some files have Int64, others have Float64 for these columns
     df = df.with_columns(
         [
-            pl.col("open_time").cast(pl.Datetime(time_unit="ms")),
-            pl.col("close_time").cast(pl.Datetime(time_unit="ms")),
+            pl.col("open_time").cast(pl.Datetime(time_unit="ms", time_zone="UTC")),
+            pl.col("close_time").cast(pl.Datetime(time_unit="ms", time_zone="UTC")),
             pl.col("close").cast(pl.Float64),
             pl.col("high").cast(pl.Float64),
             pl.col("low").cast(pl.Float64),
