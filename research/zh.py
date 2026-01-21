@@ -1,4 +1,5 @@
 import math
+
 import polars as pl
 
 OPEN = pl.col("open")
@@ -7,6 +8,7 @@ LOW = pl.col("low")
 CLOSE = pl.col("close")
 VOLUME = pl.col("volume")
 OPEN_TIME = pl.col("open_time")
+SYMBOL = pl.col("symbol")
 RET = pl.col("ret")
 
 ETH_USDT = "ETHUSDT"
@@ -28,7 +30,18 @@ RDD_MIN = ANN_RET_MIN / MDD
 RDD_DAY = ANN_RET_DAY / MDD
 
 
-def read(interval: str = "1m") -> pl.LazyFrame:
+def plot(data: pl.LazyFrame) -> None:
+    data.group_by_dynamic(OPEN_TIME, every="1d").agg(
+        RET.sum(),
+    ).with_columns(RET.cum_sum()).collect().plot.line(x="open_time", y="ret").show()
+
+
+def read(interval: str = "1m") -> pl.DataFrame:
+    DATA_PATH = {"1m": "../data/1m/1m.parquet", "1d": "../data/1d/1d.parquet"}
+    return pl.read_parquet(DATA_PATH[interval])
+
+
+def scan(interval: str = "1m") -> pl.LazyFrame:
     DATA_PATH = {"1m": "../data/1m/1m.parquet", "1d": "../data/1d/1d.parquet"}
     return pl.scan_parquet(DATA_PATH[interval])
 
