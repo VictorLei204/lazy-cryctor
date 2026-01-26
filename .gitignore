@@ -11,7 +11,3 @@ wheels/
 
 data/
 AutogluonModels/
-
-# pixi environments
-.pixi/*
-!.pixi/config.toml
