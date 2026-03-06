@@ -1,8 +1,10 @@
 import datetime
-import math
+from pathlib import Path
 
 import altair as alt
 import polars as pl
+
+PATH = Path(__file__).parent.parent / "data" / "1m"
 
 OPEN = pl.col("open")
 HIGH = pl.col("high")
@@ -11,7 +13,8 @@ CLOSE = pl.col("close")
 VOLUME = pl.col("volume")
 OPEN_TIME = pl.col("open_time")
 SYMBOL = pl.col("symbol")
-RET = pl.col("ret")
+RET = pl.col("ret").fill_null(0)
+INTERVAL = OPEN_TIME.diff().mean()
 
 ETH_USDT = "ETHUSDT"
 BTC_USDT = "BTCUSDT"
@@ -23,29 +26,46 @@ BNB_USDT = "BNBUSDT"
 ET = "America/New_York"
 UTC = "UTC"
 
-ANN_RET_MIN = RET.mean() * 365 * 24 * 60
-ANN_RET_DAY = RET.mean() * 365
-SHARPE_MIN = math.sqrt(365 * 24 * 60) * RET.mean() / RET.std()
-SHARPE_DAY = math.sqrt(365) * RET.mean() / RET.std()
+
+ANN_RET = RET.mean() * (pl.duration(days=365) / INTERVAL)
+SHARPE = (pl.duration(days=365) / INTERVAL).sqrt() * RET.mean() / RET.std()
 MDD = (RET.cum_sum().cum_max() - RET.cum_sum()).max()
-RDD_MIN = ANN_RET_MIN / MDD
-RDD_DAY = ANN_RET_DAY / MDD
+RDD = ANN_RET / MDD
 
 
-def plot(data: pl.LazyFrame) -> None:
-    data.group_by_dynamic(OPEN_TIME, every="1d").agg(
-        RET.sum(),
-    ).with_columns(RET.cum_sum()).collect().plot.line(x="open_time", y="ret").show()
+def plot(data: pl.LazyFrame | pl.DataFrame) -> alt.Chart:
+    return (
+        data.lazy()
+        .group_by_dynamic(OPEN_TIME, every="1d")
+        .agg(
+            RET.sum(),
+        )
+        .with_columns(RET.cum_sum())
+        .collect(engine="streaming")
+        .plot.line(x="open_time", y="ret")
+    )
 
 
 def read(interval: str = "1m") -> pl.DataFrame:
-    DATA_PATH = {"1m": "../data/1m/1m.parquet", "1d": "../data/1d/1d.parquet"}
-    return pl.read_parquet(DATA_PATH[interval])
+    if interval == "1m":
+        return pl.read_parquet(PATH)
+    data = (
+        pl.scan_parquet(PATH)
+        .group_by_dynamic(index_column=OPEN_TIME, every=interval, group_by=SYMBOL)
+        .agg(OPEN.first(), HIGH.max(), LOW.min(), CLOSE.last())
+    ).collect(engine="streaming")
+    return data
 
 
 def scan(interval: str = "1m") -> pl.LazyFrame:
-    DATA_PATH = {"1m": "../data/1m/1m.parquet", "1d": "../data/1d/1d.parquet"}
-    return pl.scan_parquet(DATA_PATH[interval])
+    if interval == "1m":
+        return pl.scan_parquet(PATH)
+    data = (
+        pl.scan_parquet(PATH)
+        .group_by_dynamic(index_column=OPEN_TIME, every=interval, group_by=SYMBOL)
+        .agg(OPEN.first(), HIGH.max(), LOW.min(), CLOSE.last())
+    )
+    return data
 
 
 def backtest(
