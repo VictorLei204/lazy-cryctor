@@ -4,6 +4,8 @@ from pathlib import Path
 import altair as alt
 import polars as pl
 
+pl.Config.set_engine_affinity("streaming")
+
 PATH = Path(__file__).parent.parent / "data" / "1m"
 
 OPEN = pl.col("open")
@@ -16,16 +18,8 @@ SYMBOL = pl.col("symbol")
 RET = pl.col("ret").fill_null(0)
 INTERVAL = OPEN_TIME.diff().mean()
 
-ETH_USDT = "ETHUSDT"
-BTC_USDT = "BTCUSDT"
-SOL_USDT = "SOLUSDT"
-XRP_USDT = "XRPUSDT"
-DOGE_USDT = "DOGEUSDT"
-BNB_USDT = "BNBUSDT"
-
 ET = "America/New_York"
 UTC = "UTC"
-
 
 ANN_RET = RET.mean() * (pl.duration(days=365) / INTERVAL)
 SHARPE = (pl.duration(days=365) / INTERVAL).sqrt() * RET.mean() / RET.std()
@@ -36,34 +30,34 @@ RDD = ANN_RET / MDD
 def plot(data: pl.LazyFrame | pl.DataFrame) -> alt.Chart:
     return (
         data.lazy()
-        .group_by_dynamic(OPEN_TIME, every="1d")
-        .agg(
-            RET.sum(),
-        )
+        .with_columns(OPEN_TIME.dt.truncate("1d"))
+        .group_by(OPEN_TIME)
+        .agg(RET.sum())
         .with_columns(RET.cum_sum())
-        .collect(engine="streaming")
+        .collect()
         .plot.line(x="open_time", y="ret")
     )
 
 
 def read(interval: str = "1m") -> pl.DataFrame:
-    if interval == "1m":
-        return pl.read_parquet(PATH)
     data = (
         pl.scan_parquet(PATH)
-        .group_by_dynamic(index_column=OPEN_TIME, every=interval, group_by=SYMBOL)
+        .with_columns(OPEN_TIME.dt.truncate(interval))
+        .group_by(SYMBOL, OPEN_TIME)
         .agg(OPEN.first(), HIGH.max(), LOW.min(), CLOSE.last())
-    ).collect(engine="streaming")
+        .sort(SYMBOL, OPEN_TIME)
+        .collect()
+    )
     return data
 
 
 def scan(interval: str = "1m") -> pl.LazyFrame:
-    if interval == "1m":
-        return pl.scan_parquet(PATH)
     data = (
         pl.scan_parquet(PATH)
-        .group_by_dynamic(index_column=OPEN_TIME, every=interval, group_by=SYMBOL)
+        .with_columns(OPEN_TIME.dt.truncate(interval))
+        .group_by(SYMBOL, OPEN_TIME)
         .agg(OPEN.first(), HIGH.max(), LOW.min(), CLOSE.last())
+        .sort(SYMBOL, OPEN_TIME)
     )
     return data
 
@@ -119,9 +113,7 @@ def backtest(
     ).select([OPEN_TIME, "cumulative_logret"])
 
     if plot:
-        cumlog.collect(engine="streaming").plot.line(
-            x="open_time", y="cumulative_logret"
-        ).show()
+        cumlog.collect().plot.line(x="open_time", y="cumulative_logret").show()
 
     return ret
 
@@ -155,7 +147,7 @@ def kline_plot(
             ]
         )
         .select(pl.all().mean())
-        .collect(engine="streaming")
+        .collect()
     )
 
     base_date = datetime.datetime(2020, 1, 1)
