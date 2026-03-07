@@ -33,6 +33,7 @@ def plot(data: pl.LazyFrame | pl.DataFrame) -> alt.Chart:
         .with_columns(OPEN_TIME.dt.truncate("1d"))
         .group_by(OPEN_TIME)
         .agg(RET.sum())
+        .sort(OPEN_TIME)
         .with_columns(RET.cum_sum())
         .collect()
         .plot.line(x="open_time", y="ret")
